@@ -1,0 +1,12 @@
+# Build artifacts
+bin/
+obj/
+*.iso
+
+# OS Specific junk
+.DS_Store
+Thumbs.db
+
+# VS Code settings (optional, usually good to ignore)
+.vscode/
+*.code-workspace
