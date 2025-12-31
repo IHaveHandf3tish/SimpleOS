@@ -12,3 +12,8 @@
 
 * added PIC, debugged few errors and made a proper c library
 * To do: Heap allocator and start working on Simple C
+
+# 31/12/25
+
+* made the core structure of simple c
+* To do: simple c and heap(probably asap)
