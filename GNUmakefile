@@ -1,13 +1,13 @@
 # Nuke built-in rules.
 .SUFFIXES:
 
-# This is the name that our final executable will have.
+# This is the name that the final executable will have.
 # Change as needed.
 override OUTPUT := SimpleOS
 
 # User controllable toolchain and toolchain prefix.
-TOOLCHAIN :=
-TOOLCHAIN_PREFIX :=
+TOOLCHAIN := 
+TOOLCHAIN_PREFIX := 
 ifneq ($(TOOLCHAIN),)
     ifeq ($(TOOLCHAIN_PREFIX),)
         TOOLCHAIN_PREFIX := $(TOOLCHAIN)-
