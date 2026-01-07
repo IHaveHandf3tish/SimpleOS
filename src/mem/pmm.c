@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 // At last! Buddy system implementation for PMM
+// still gotta fix some magic numbers later
 
 #define MAX_ORDER 11  // 2^11 pages = 8MB max contiguous allocation
 #define MIN_ORDER 0   // 2^0 pages = 4KB (single page)

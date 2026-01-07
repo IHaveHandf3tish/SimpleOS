@@ -1,6 +1,6 @@
 // since we're building an Hypervisor with a Desktop interface, we need slab allocator for small objects
 // my dog still tryna scratch his ass, so we will add this later
-
+/*
 
 typedef struct _SLAB {
    CACHE*          cache;
@@ -35,3 +35,4 @@ typedef struct _CACHE {
 struct vm_descriptor *vm = kmalloc(sizeof(*vm));  // VM metadata
 struct vcpu *vcpu = kmalloc(sizeof(*vcpu));       // vCPU state
 struct page_table *ept = kmalloc(sizeof(*ept));   // EPT entries
+*/
