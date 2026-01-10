@@ -18,7 +18,12 @@
 * made the core structure of simple c
 * To do: simple c and heap(probably asap)
 
-# 07/01/25
+# 07/01/26
 
 * Lowkenuily finally replaced the bitmap alloc with the buddy system
 * now my ass still have the heap and the slab alloc
+
+# 10/01/26
+
+* Added the slab allocator and the 2 level heap alloc
+* To do: simple c and 

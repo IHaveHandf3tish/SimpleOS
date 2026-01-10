@@ -5,28 +5,40 @@
 #include <stddef.h>
 #include <limine.h> 
 
-// Initializes the Physical Memory Manager.
-// Requires the memory map and HHDM response passed from kmain.
+
 void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response *hhdm);
 
-// Allocates a single 4KiB page.
-// Returns the PHYSICAL address of the page, or NULL if out of memory.
+// Allocate a single page (4KB)
 void *pmm_alloc_page(void);
 
-// Frees a single 4KiB page.
-// Expects a PHYSICAL address.
-void pmm_free_page(void *ptr);
+// Free a single page
+void pmm_free_page(void *page);
 
-size_t pmm_get_total_memory(void);
-size_t pmm_get_used_memory(void);
-size_t pmm_get_free_memory(void);
-void pmm_print_stats(void);
-// for VT support
-// Allocate physically contiguous, 4KB-aligned memory
+// Allocate multiple contiguous pages
+void *pmm_alloc_pages(size_t count);
+
+// Free multiple contiguous pages
+void pmm_free_pages(void *pages, size_t count);
+
+// Allocate aligned memory
 void *pmm_alloc_aligned(size_t size, size_t alignment);
-// Free physically contiguous, 4KB-aligned memory
+
+// Free aligned memory
 void pmm_free_aligned(void *ptr, size_t size);
-//testing function to verify PMM functionality
+
+// Get total system memory in bytes
+size_t pmm_get_total_memory(void);
+
+// Get used memory in bytes
+size_t pmm_get_used_memory(void);
+
+// Get free memory in bytes
+size_t pmm_get_free_memory(void);
+
+// Print memory statistics
+void pmm_print_stats(void);
+
+// Test PMM functionality
 void test_pmm(void);
 
-#endif
+#endif // PMM_H

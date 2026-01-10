@@ -10,6 +10,9 @@
 #include <memmap.h>
 #include <pmm.h>
 #include <vmm.h>
+#include <slab.h>
+#include <heap.h>
+
 
 //------- Limine Requests (send them to a different .c file later)-------
 
@@ -119,6 +122,9 @@ void kmain(void) {
         kprintf("HHDM Write Test Failed!\n");
     }
     test_vmm(); 
+    slab_init();
+    heap_init(hhdm_request.response);
+    test_heap();
 
     // We're done, just hang...
     hcf();
