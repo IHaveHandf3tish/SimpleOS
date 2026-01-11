@@ -52,5 +52,6 @@ void slab_init(void);
 CACHE* cache_create(size_t size, int align, int flags);
 void* cache_alloc(CACHE* cache);
 void cache_free(CACHE* cache, void* obj);
-
+void spin_lock(SPIN_LOCK* lock);
+void spin_unlock(SPIN_LOCK* lock);
 #endif

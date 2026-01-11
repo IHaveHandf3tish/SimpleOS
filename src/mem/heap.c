@@ -31,6 +31,7 @@ typedef struct slab_header {
 static slab_header_t *slab_lists[NUM_SLABS] = {NULL};
 static uintptr_t hhdm_offset = 0;
 static bool heap_initialized = false;
+static SPIN_LOCK heap_lock = {0};
 
 // Get slab class index for given size
 static int get_slab_class(size_t size) {
@@ -115,7 +116,9 @@ void heap_init(struct limine_hhdm_response *hhdm) {
 }
 
 void *kmalloc(size_t size) {
+    spin_lock(&heap_lock);
     if (!heap_initialized || size == 0) {
+        spin_unlock(&heap_lock);
         return NULL;
     }
     
@@ -126,7 +129,9 @@ void *kmalloc(size_t size) {
         size_t pages = (size + sizeof(size_t) + 4095) / 4096;
         void *mem = pmm_alloc_pages(pages);
         if (!mem) {
-            return NULL;
+            kprintf("PANIC: Out of memory allocating %d bytes\n", size);
+            spin_unlock(&heap_lock);
+            return NULL; 
         }
         
         // Store size in header for kfree
@@ -148,6 +153,7 @@ void *kmalloc(size_t size) {
     if (!slab) {
         slab = create_slab(class);
         if (!slab) {
+            spin_unlock(&heap_lock);
             return NULL;
         }
         
@@ -159,6 +165,7 @@ void *kmalloc(size_t size) {
     // Allocate from free list
     if (!slab->free_list) {
         kprintf("Heap Error: Slab has no free objects but objects_used < objects_total\n");
+        spin_unlock(&heap_lock);
         return NULL;
     }
     
@@ -168,12 +175,14 @@ void *kmalloc(size_t size) {
     
     // Zero the memory
     memset(obj, 0, slab->object_size);
-    
+    spin_unlock(&heap_lock);
     return obj;
 }
 
 void kfree(void *ptr) {
+    spin_lock(&heap_lock);
     if (!ptr || !heap_initialized) {
+        spin_unlock(&heap_lock);
         return;
     }
     
@@ -220,6 +229,7 @@ void kfree(void *ptr) {
         uintptr_t phys = (uintptr_t)header - hhdm_offset;
         pmm_free_pages((void *)phys, pages);
     }
+    spin_unlock(&heap_lock);
 }
 
 void *krealloc(void *ptr, size_t new_size) {

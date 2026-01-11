@@ -11,7 +11,7 @@
 
 #define MAX_ORDER 11  // 2^11 pages = 8MB max contiguous allocation
 #define MIN_ORDER 0   // 2^0 pages = 4KB (single page)
-
+#define PAGE_SIZE 4096
 static uint8_t *bitmap = NULL;
 static size_t bitmap_size = 0;
 static size_t total_pages = 0;
@@ -64,7 +64,7 @@ static void mark_block_free(size_t page_index, size_t order) {
 
 // Add block to free list
 static void add_to_free_list(size_t page_index, size_t order) {
-    void *block_virt = (void *)(page_index * 4096 + hhdm_offset);
+    void *block_virt = (void *)(page_index * PAGE_SIZE + hhdm_offset);
     free_block_t *block = (free_block_t *)block_virt;
     
     block->next = free_lists[order];
@@ -92,7 +92,7 @@ static void remove_from_free_list(free_block_t *block, size_t order) {
 
 // Find and remove a block from free list by page index
 static bool find_and_remove_from_free_list(size_t page_index, size_t order) {
-    void *block_virt = (void *)(page_index * 4096 + hhdm_offset);
+    void *block_virt = (void *)(page_index * PAGE_SIZE + hhdm_offset);
     
     for (free_block_t *curr = free_lists[order]; curr != NULL; curr = curr->next) {
         if (curr == block_virt) {
@@ -125,7 +125,7 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
         }
     }
 
-    total_pages = highest_addr / 4096;
+    total_pages = highest_addr / PAGE_SIZE;
     bitmap_size = total_pages / 8;
 
     // 2. Find a hole for the bitmap
@@ -142,16 +142,16 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *e = memmap->entries[i];
         if (e->type == LIMINE_MEMMAP_USABLE) {
-            for (size_t j = 0; j < e->length; j += 4096) {
-                bitmap_unset((e->base + j) / 4096);
+            for (size_t j = 0; j < e->length; j += PAGE_SIZE) {
+                bitmap_unset((e->base + j) / PAGE_SIZE);
             }
         }
     }
 
     // 4. Mark the bitmap itself as used
     uintptr_t bitmap_phys = (uintptr_t)bitmap - hhdm_offset;
-    size_t bitmap_start_page = bitmap_phys / 4096;
-    size_t bitmap_num_pages = (bitmap_size + 4095) / 4096;
+    size_t bitmap_start_page = bitmap_phys / PAGE_SIZE;
+    size_t bitmap_num_pages = (bitmap_size + 4095) / PAGE_SIZE;
     
     for (size_t i = 0; i < bitmap_num_pages; i++) {
         bitmap_set(bitmap_start_page + i);
@@ -164,8 +164,8 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *e = memmap->entries[i];
         if (e->type == LIMINE_MEMMAP_USABLE) {
-            size_t start_page = e->base / 4096;
-            size_t num_pages = e->length / 4096;
+            size_t start_page = e->base / PAGE_SIZE;
+            size_t num_pages = e->length / PAGE_SIZE;
             
             // Add blocks of largest possible order
             size_t page = start_page;
@@ -211,12 +211,12 @@ static void *pmm_alloc_order(size_t order) {
     // Check if we have a free block at this order
     if (free_lists[order]) {
         free_block_t *block = free_lists[order];
-        size_t page_index = ((uintptr_t)block - hhdm_offset) / 4096;
+        size_t page_index = ((uintptr_t)block - hhdm_offset) / PAGE_SIZE;
         
         remove_from_free_list(block, order);
         mark_block_used(page_index, order);
         
-        return (void *)(page_index * 4096);
+        return (void *)(page_index * PAGE_SIZE);
     }
 
     // No block available, split a larger block
@@ -226,7 +226,7 @@ static void *pmm_alloc_order(size_t order) {
             return NULL;
         }
 
-        size_t page_index = (uintptr_t)larger_block / 4096;
+        size_t page_index = (uintptr_t)larger_block / PAGE_SIZE;
         
         // Split: mark first half as used, add second half to free list
         size_t buddy_index = page_index + (1 << order);
@@ -246,7 +246,7 @@ static void pmm_free_order(void *page, size_t order) {
     }
 
     uintptr_t phys = (uintptr_t)page;
-    size_t page_index = phys / 4096;
+    size_t page_index = phys / PAGE_SIZE;
     
     // Mark as free in bitmap
     mark_block_free(page_index, order);
@@ -299,7 +299,7 @@ void pmm_free_page(void *page) {
     if (!page) return;
     
     uintptr_t phys = (uintptr_t)page;
-    size_t page_index = phys / 4096;
+    size_t page_index = phys / PAGE_SIZE;
     
     if (page_index >= total_pages || page_index < 256) {
         kprintf("PMM: Invalid free attempt at 0x%lx\n", phys);
@@ -324,20 +324,20 @@ void pmm_free_pages(void *pages, size_t count) {
 }
 
 void *pmm_alloc_aligned(size_t size, size_t alignment) {
-    size_t pages = (size + 4095) / 4096;
+    size_t pages = (size + 4095) / PAGE_SIZE;
     size_t order = pages_to_order(pages);
     
-    if (alignment <= (4096 << order)) {
+    if (alignment <= (PAGE_SIZE << order)) {
         return pmm_alloc_order(order);
     }
     
     // Fallback for unusual alignment requirements
-    return pmm_alloc_order(pages_to_order(alignment / 4096));
+    return pmm_alloc_order(pages_to_order(alignment / PAGE_SIZE));
 }
 
 void pmm_free_aligned(void *ptr, size_t size) {
     if (!ptr || size == 0) return;
-    size_t pages = (size + 4095) / 4096;
+    size_t pages = (size + 4095) / PAGE_SIZE;
     size_t order = pages_to_order(pages);
     pmm_free_order(ptr, order);
 }
@@ -352,7 +352,7 @@ size_t pmm_get_used_memory(void) {
     for (size_t i = 0; i < total_pages; i++) {
         if (bitmap_test(i)) used++;
     }
-    return used * 4096;
+    return used * PAGE_SIZE;
 }
 
 size_t pmm_get_free_memory(void) {
