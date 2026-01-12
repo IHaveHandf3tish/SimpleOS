@@ -32,3 +32,8 @@
 
 * Code fixes, thread locking added a constants header file
 * to do: more locking and implementing the constants, as well as the scheduler
+
+# 11/01/26 (pt.2)
+
+* Got rid of magic nums in mm, graceful error handling and fixed kprint
+* To do: scheduler, simple c and start working on the hypervisor 

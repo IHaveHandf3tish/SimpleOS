@@ -76,6 +76,25 @@ void kprintf(const char *format, ...) {
                     kputstring(str);
                     break;
                 }
+                case 'l': {
+                    i++; // Move to next character after 'l'
+                    if (format[i] == 'x') {
+                        unsigned long value = va_arg(args, unsigned long);
+                        kprint_int(value, 16, false);
+                    } else if (format[i] == 'u') {
+                        unsigned long value = va_arg(args, unsigned long);
+                        kprint_int(value, 10, false);
+                    } else if (format[i] == 'd') {
+                        long value = va_arg(args, long);
+                        kprint_int(value, 10, true);
+                    } else {
+                        // Unknown format after %l
+                        kputchar('%');
+                        kputchar('l');
+                        kputchar(format[i]);
+                    }
+                    break;
+                }
                 case '%': {
                     kputchar('%');
                     break;
