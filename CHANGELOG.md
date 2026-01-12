@@ -26,4 +26,9 @@
 # 10/01/26
 
 * Added the slab allocator and the 2 level heap alloc
-* To do: simple c and 
+* To do: simple c and spin lock
+
+# 11/01/26
+
+* Code fixes, thread locking added a constants header file
+* to do: more locking and implementing the constants, as well as the scheduler
