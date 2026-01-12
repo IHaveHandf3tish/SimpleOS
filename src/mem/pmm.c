@@ -4,6 +4,9 @@
 #include <kprintf.h>
 #include <string.h>
 #include <stdbool.h>
+#include <pmm.h>
+#include <slab.h>
+
 
 
 // At last! Buddy system implementation for PMM
@@ -17,6 +20,7 @@ static size_t bitmap_size = 0;
 static size_t total_pages = 0;
 static uintptr_t highest_addr = 0;
 static uintptr_t hhdm_offset = 0;
+static SPIN_LOCK pmm_lock = {0};
 
 typedef struct free_block {
     struct free_block *next;
@@ -292,54 +296,70 @@ static size_t pages_to_order(size_t pages) {
 
 // Public API
 void *pmm_alloc_page(void) {
-    return pmm_alloc_order(0);
+    spin_lock(&pmm_lock);
+    void *page = pmm_alloc_order(0);
+    spin_unlock(&pmm_lock);
+    return page;
 }
 
 void pmm_free_page(void *page) {
     if (!page) return;
+    spin_lock(&pmm_lock);
     
     uintptr_t phys = (uintptr_t)page;
     size_t page_index = phys / PAGE_SIZE;
     
     if (page_index >= total_pages || page_index < 256) {
         kprintf("PMM: Invalid free attempt at 0x%lx\n", phys);
+        spin_unlock(&pmm_lock);
         return;
     }
     
     pmm_free_order(page, 0);
+    spin_unlock(&pmm_lock);
 }
 
 void *pmm_alloc_pages(size_t count) {
     if (count == 0) return NULL;
+    spin_lock(&pmm_lock);
     
     size_t order = pages_to_order(count);
-    return pmm_alloc_order(order);
+    void *page = pmm_alloc_order(order);
+    spin_unlock(&pmm_lock);
+    return page;
 }
 
 void pmm_free_pages(void *pages, size_t count) {
     if (!pages || count == 0) return;
-    
+    spin_lock(&pmm_lock);
     size_t order = pages_to_order(count);
     pmm_free_order(pages, order);
+    spin_unlock(&pmm_lock);
 }
 
 void *pmm_alloc_aligned(size_t size, size_t alignment) {
+    if (size == 0 || alignment == 0) return NULL;
+    spin_lock(&pmm_lock);
     size_t pages = (size + 4095) / PAGE_SIZE;
     size_t order = pages_to_order(pages);
     
     if (alignment <= (PAGE_SIZE << order)) {
-        return pmm_alloc_order(order);
+        void *block = pmm_alloc_order(order);
+        spin_unlock(&pmm_lock);
+        return block;
     }
-    
+    void *block = pmm_alloc_order(pages_to_order(alignment / PAGE_SIZE));
     // Fallback for unusual alignment requirements
-    return pmm_alloc_order(pages_to_order(alignment / PAGE_SIZE));
+    return block;
 }
 
 void pmm_free_aligned(void *ptr, size_t size) {
     if (!ptr || size == 0) return;
+    spin_lock(&pmm_lock);
     size_t pages = (size + 4095) / PAGE_SIZE;
     size_t order = pages_to_order(pages);
     pmm_free_order(ptr, order);
+    spin_unlock(&pmm_lock);
 }
 
 // Stats functions remain similar

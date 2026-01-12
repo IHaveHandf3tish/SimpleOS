@@ -146,6 +146,7 @@ static SLAB* create_slab(CACHE* cache) {
 }
 
 CACHE* cache_create(size_t size, int align, int flags) {
+   
     CACHE* cache = (CACHE*)pmm_alloc_pages(1);
     if (!cache) return NULL;
     
