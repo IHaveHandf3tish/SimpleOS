@@ -92,10 +92,12 @@ void spin_lock(SPIN_LOCK* lock) {
     while (__sync_lock_test_and_set(&lock->locked, 1)) {
         while (lock->locked) __asm__ volatile("pause");
     }
+    __sync_synchronize();
 }
 
 void spin_unlock(SPIN_LOCK* lock) {
     if (!lock) return;
+    __sync_synchronize();
     __sync_lock_release(&lock->locked);
 }
 
@@ -348,7 +350,7 @@ void cache_destroy(CACHE* cache) {
         return;
     }
     
-    spin_lock(&globalLock);
+    
     spin_lock(&cache->lock);
     
     // Free all slabs
@@ -370,10 +372,12 @@ void cache_destroy(CACHE* cache) {
         pmm_free_pages(slab, 1);
     }
     
-    // Remove from global cache list
-    remove_entry_list(&cache->listEntry);
+    
     
     spin_unlock(&cache->lock);
+    spin_lock(&globalLock);
+    // Remove from global cache list
+    remove_entry_list(&cache->listEntry);
     spin_unlock(&globalLock);
     
     pmm_free_pages(cache, 1);

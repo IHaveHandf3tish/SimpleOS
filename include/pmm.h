@@ -34,6 +34,10 @@ size_t pmm_get_used_memory(void);
 
 // Get free memory in bytes
 size_t pmm_get_free_memory(void);
+// Allocate a single zeroed page
+void *pmm_alloc_page_zeroed(void);
+// Allocate multiple zeroed pages
+void *pmm_alloc_pages_zeroed(size_t count);
 
 // Print memory statistics
 void pmm_print_stats(void);

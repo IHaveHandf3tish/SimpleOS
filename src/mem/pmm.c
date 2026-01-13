@@ -15,6 +15,7 @@ static size_t total_pages = 0;
 static uintptr_t highest_addr = 0;
 static uintptr_t hhdm_offset = 0;
 static SPIN_LOCK pmm_lock = {0};
+static uint16_t *page_refcounts = NULL;
 
 typedef struct free_block {
     struct free_block *next;
@@ -158,6 +159,24 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
             }
         }
     }
+    //3.5 Allocate refcount array
+    size_t refcount_size = total_pages * sizeof(uint16_t);
+    for (size_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry *e = memmap->entries[i];
+        if (e->type == LIMINE_MEMMAP_USABLE && e->length >= refcount_size) {
+            page_refcounts = (uint16_t *)(e->base + hhdm_offset);
+            memset(page_refcounts, 0, refcount_size);
+            
+            // Mark refcount array as used
+            uintptr_t refcount_phys = (uintptr_t)page_refcounts - hhdm_offset;
+            size_t refcount_start_page = refcount_phys / PAGE_SIZE;
+            size_t refcount_num_pages = BYTES_TO_PAGES(refcount_size);
+            for (size_t j = 0; j < refcount_num_pages; j++) {
+                bitmap_set(refcount_start_page + j);
+            }
+            break;
+        }
+    }
 
     // 4. Mark the bitmap itself as used
     uintptr_t bitmap_phys = (uintptr_t)bitmap - hhdm_offset;
@@ -172,7 +191,6 @@ void pmm_init(struct limine_memmap_response *memmap, struct limine_hhdm_response
     for(size_t i = 0; i < FIRST_MB_PAGES; i++) {
         bitmap_set(i);
     }
-
     // 6. Build buddy system free lists from usable regions
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *e = memmap->entries[i];
@@ -287,7 +305,12 @@ static void pmm_free_order(void *page, size_t order) {
     // Try to coalesce with buddy
     while (order < PMM_MAX_ORDER) {
         size_t buddy_index = get_buddy_index(page_index, order);
-        
+        size_t block_size = 1 << (order + 1);
+        size_t aligned_start = page_index & ~(block_size - 1);
+        if (aligned_start != page_index && aligned_start != buddy_index) {
+        // Parent block wouldn't be properly aligned
+            break;
+        }
         // Check if buddy is free and exists
         if (buddy_index >= total_pages || !is_block_free(buddy_index, order)) {
             break;
@@ -473,6 +496,43 @@ size_t pmm_get_used_memory(void) {
 
 size_t pmm_get_free_memory(void) {
     return pmm_get_total_memory() - pmm_get_used_memory();
+}
+
+void *pmm_alloc_page_zeroed(void) {
+    void *page = pmm_alloc_page();
+    if (page) {
+        void *virt = (void *)((uintptr_t)page + hhdm_offset);
+        memset(virt, 0, PAGE_SIZE);
+    }
+    return page;
+}
+
+void *pmm_alloc_pages_zeroed(size_t count) {
+    void *pages = pmm_alloc_pages(count);
+    if (pages) {
+        void *virt = (void *)((uintptr_t)pages + hhdm_offset);
+        memset(virt, 0, PAGES_TO_BYTES(count));
+    }
+    return pages;
+}
+
+
+void pmm_ref_page(void *page) {
+    if (!page || !page_refcounts) return; 
+    size_t index = (uintptr_t)page / PAGE_SIZE;
+    if (index < total_pages) {
+        __sync_fetch_and_add(&page_refcounts[index], 1);
+    }
+}
+
+void pmm_unref_page(void *page) {
+    if (!page || !page_refcounts) return; 
+    size_t index = (uintptr_t)page / PAGE_SIZE;
+    if (index < total_pages) {
+        if (__sync_fetch_and_sub(&page_refcounts[index], 1) == 1) {
+            pmm_free_page(page);
+        }
+    }
 }
 
 void pmm_print_stats(void) {

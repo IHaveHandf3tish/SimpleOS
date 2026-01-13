@@ -56,7 +56,7 @@ static slab_header_t *create_slab(int class) {
     size_t obj_size = slab_sizes[class];
     
     // Allocate a page for the slab
-    void *page = pmm_alloc_page();
+    void *page = pmm_alloc_page_zeroed();
     if (!page) {
         kprintf("Heap Critical: Failed to allocate page for slab class %d (%d bytes)\n",
                 class, obj_size);
@@ -297,52 +297,59 @@ void kfree(void *ptr) {
 }
 
 void *krealloc(void *ptr, size_t new_size) {
-    if (!ptr) {
-        return kmalloc(new_size);
-    }
-    
+    if (!ptr) return kmalloc(new_size);
     if (new_size == 0) {
         kfree(ptr);
         return NULL;
     }
     
-    // Allocate new block
-    void *new_ptr = kmalloc(new_size);
-    if (!new_ptr) {
-        kprintf("Heap Error: krealloc failed to allocate %d bytes\n", new_size);
-        return NULL;
-    }
-    
-    // Try to determine old size (approximate for slab allocations)
+    // Check old size class
+    int old_class = -1;
     size_t old_size = 0;
     
-    // Check if it's in a slab
     for (int i = 0; i < NUM_SLAB_CLASSES; i++) {
         if (find_slab_for_object(ptr, i)) {
+            old_class = i;
             old_size = slab_sizes[i];
             break;
         }
     }
     
+    // NEW: If same size class, just return same pointer
+    int new_class = get_slab_class(new_size);
+    if (new_class == old_class && new_class >= 0) {
+        return ptr; // Same slab class, no realloc needed
+    }
+    
     // If not in slab, it's a large allocation
-    if (old_size == 0) {
+    if (old_class < 0) {
         size_t *header = (size_t *)ptr - 1;
         size_t pages = *header;
         
         if (pages == 0 || pages > PMM_MAX_CONTIGUOUS_PAGES) {
-            kprintf("Heap Error: krealloc detected corrupted header (pages=%d)\n", pages);
-            kfree(new_ptr);
+            kprintf("Heap Error: krealloc detected corrupted header (pages=%zu)\n", pages);
             return NULL;
         }
         
         old_size = PAGES_TO_BYTES(pages) - sizeof(size_t);
+        
+        // NEW: If shrinking large allocation, keep same block
+        if (new_class < 0 && new_size <= old_size) {
+            return ptr;
+        }
     }
     
-    // Copy old data
-    size_t copy_size = old_size < new_size ? old_size : new_size;
-    memcpy(new_ptr, ptr, copy_size);
+    // Different class - need new allocation
+    void *new_ptr = kmalloc(new_size);
+    if (!new_ptr) {
+        kprintf("Heap Error: krealloc failed to allocate %zu bytes\n", new_size);
+        return NULL;
+    }
     
+    size_t copy_size = (old_size < new_size) ? old_size : new_size;
+    memcpy(new_ptr, ptr, copy_size);
     kfree(ptr);
+    
     return new_ptr;
 }
 

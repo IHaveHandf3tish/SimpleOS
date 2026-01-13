@@ -36,4 +36,9 @@
 # 11/01/26 (pt.2)
 
 * Got rid of magic nums in mm, graceful error handling and fixed kprint
-* To do: scheduler, simple c and start working on the hypervisor 
+* To do: scheduler, simple c and start working on the hypervisor management
+
+# 13/01/26
+
+* thread safety, crash prevention started work on the scheduler
+* To do: the same as before
